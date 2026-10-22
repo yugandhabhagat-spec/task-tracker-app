@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task Tracker</title>
+<style>
+:root{--navy:#0f1b3d;--purple:#6a52d6;--lilac:#a99bff;--bg:#f7f8fc;--line:#d9deec;--muted:#53607f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--navy);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{background:var(--navy);color:#fff;padding:2rem 1rem 4rem;text-align:center}
+header h1{margin:0 0 .25rem;font-size:2rem}
+header p{margin:0;color:#c9cfe6}
+main{max-width:34rem;margin:-2.5rem auto 2rem;padding:0 1rem}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:1.25rem;box-shadow:0 6px 20px rgba(15,27,61,.08)}
+form{display:flex;gap:.5rem}
+input[type=text]{flex:1;min-width:0;padding:.7rem .9rem;border:1px solid var(--line);border-radius:10px;font:inherit}
+input[type=text]:focus,button:focus-visible{outline:3px solid var(--lilac);outline-offset:1px}
+button{font:inherit;cursor:pointer;border-radius:10px;border:0;transition:transform .15s,background .15s}
+.add{background:var(--purple);color:#fff;padding:.7rem 1.1rem;font-weight:600}
+.add:hover{transform:translateY(-1px);background:#5842c2}
+.progress{margin:1.25rem 0 .25rem;height:8px;background:var(--line);border-radius:99px;overflow:hidden}
+.progress div{height:100%;width:0;background:var(--purple);transition:width .3s}
+.stats{font-size:.9rem;color:var(--muted);margin:0 0 1rem}
+.filters{display:flex;gap:.4rem;margin-bottom:.75rem}
+.filters button{background:none;border:1px solid var(--line);padding:.3rem .8rem;color:var(--navy)}
+.filters button.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;align-items:center;gap:.7rem;padding:.7rem 0;border-bottom:1px solid var(--line)}
+li:last-child{border-bottom:0}
+li input{width:1.2rem;height:1.2rem;accent-color:var(--purple)}
+li span{flex:1;word-break:break-word}
+li.done span{text-decoration:line-through;color:var(--muted)}
+.del{background:none;color:var(--muted);font-size:1.2rem;padding:.1rem .5rem}
+.del:hover{color:#c0392b}
+.empty{text-align:center;color:var(--muted);padding:1rem 0}
+.clear{margin-top:1rem;background:none;color:var(--purple);font-weight:600;padding:.3rem 0}
+.clear:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<header>
+  <h1>Task Tracker</h1>
+  <p>Plan your day and track your progress</p>
+</header>
+<main>
+  <div class="card">
+    <form id="form">
+      <input type="text" id="input" placeholder="Add a new task" aria-label="New task" required>
+      <button class="add" type="submit">Add</button>
+    </form>
+    <div class="progress"><div id="bar"></div></div>
+    <p class="stats" id="stats"></p>
+    <div class="filters" id="filters">
+      <button data-f="all" class="active">All</button>
+      <button data-f="active">Active</button>
+      <button data-f="done">Done</button>
+    </div>
+    <ul id="list"></ul>
+    <button class="clear" id="clear">Clear completed</button>
+  </div>
+</main>
+
+<script>
+var tasks = [];
+var filter = "all";
+try { tasks = JSON.parse(localStorage.getItem("tasks")) || []; } catch (e) { tasks = []; }
+
+var list = document.getElementById("list");
+var form = document.getElementById("form");
+var input = document.getElementById("input");
+
+function save() {
+  try { localStorage.setItem("tasks", JSON.stringify(tasks)); } catch (e) {}
+}
+
+function render() {
+  list.innerHTML = "";
+  var shown = tasks.filter(function (t) {
+    return filter === "all" || (filter === "done" ? t.done : !t.done);
+  });
+  if (shown.length === 0) {
+    var empty = document.createElement("li");
+    empty.className = "empty";
+    empty.textContent = "No tasks here. Add one above.";
+    list.appendChild(empty);
+  }
+  shown.forEach(function (t) {
+    var li = document.createElement("li");
+    if (t.done) li.className = "done";
+
+    var cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = t.done;
+    cb.setAttribute("aria-label", "Mark task done");
+    cb.onchange = function () { t.done = cb.checked; save(); render(); };
+
+    var span = document.createElement("span");
+    span.textContent = t.text;
+
+    var del = document.createElement("button");
+    del.className = "del";
+    del.textContent = "\u00d7";
+    del.setAttribute("aria-label", "Delete task");
+    del.onclick = function () {
+      tasks = tasks.filter(function (x) { return x.id !== t.id; });
+      save(); render();
+    };
+
+    li.appendChild(cb); li.appendChild(span); li.appendChild(del);
+    list.appendChild(li);
+  });
+
+  var done = tasks.filter(function (t) { return t.done; }).length;
+  var pct = tasks.length ? Math.round(done / tasks.length * 100) : 0;
+  document.getElementById("bar").style.width = pct + "%";
+  document.getElementById("stats").textContent = done + " of " + tasks.length + " tasks completed (" + pct + "%)";
+}
+
+form.addEventListener("submit", function (e) {
+  e.preventDefault();
+  var text = input.value.trim();
+  if (!text) return;
+  tasks.unshift({ id: Date.now(), text: text, done: false });
+  input.value = "";
+  save(); render();
+});
+
+document.getElementById("filters").addEventListener("click", function (e) {
+  if (!e.target.dataset.f) return;
+  filter = e.target.dataset.f;
+  Array.prototype.forEach.call(this.children, function (b) {
+    b.classList.toggle("active", b === e.target);
+  });
+  render();
+});
+
+document.getElementById("clear").onclick = function () {
+  tasks = tasks.filter(function (t) { return !t.done; });
+  save(); render();
+};
+
+render();
+</script>
+</body>
+</html>
